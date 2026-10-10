@@ -155,16 +155,35 @@ export function decide(c: Criteria, evidence: Record<string, string> = {}, opts:
   };
 }
 
-/** Hallucination guard: a phone number counts only if its digits appear in what the CALLER actually said. */
 const WORDS: Record<string, string> = { zero: "0", oh: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9" };
-/** Digits in a caller's utterance, including spoken ones ("nine eight two zero…"), which speech-to-text often returns. */
-const digits = (x: string) => x.toLowerCase().replace(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/g, (w) => WORDS[w]).replace(/\D/g, "");
-export function numberIsReal(num: string | null, history: Turn[]) {
-  if (!num) return false;
-  const d = digits(num).slice(-10);
-  if (d.length < 10) return false;
-  return history.filter((t) => t.role === "caller").some((t) => digits(t.text).includes(d));
+const WORD_RE = /\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/g;
+/** Spoken text -> digits: "nine eight double two" -> "98822". Speech-to-text returns digits as words, digits, or a mix. */
+const spokenDigits = (x: string) =>
+  x.toLowerCase()
+    .replace(/\b(double|triple)\s+(zero|oh|one|two|three|four|five|six|seven|eight|nine|\d)\b/g, (_m, k, w) => (WORDS[w] ?? w).repeat(k === "double" ? 2 : 3))
+    .replace(WORD_RE, (w) => WORDS[w]);
+const digits = (x: string) => spokenDigits(x).replace(/\D/g, "");
+
+/**
+ * The callback number is read from what the CALLER actually said, never from the model's output (the model once
+ * invented one). Handles numbers split across several short utterances, which is how people read digits aloud.
+ */
+export function extractNumber(history: Turn[]): string | null {
+  const pick = (d: string) => {
+    if (d.length < 10) return null;
+    const tail = d.slice(-10); // handles "+91 ..." and stray digits before the number
+    return /^[6-9]/.test(tail) ? tail : (d.match(/[6-9]\d{9}/)?.[0] ?? null);
+  };
+  let buf = "";
+  for (const t of history.filter((x) => x.role === "caller")) {
+    const sp = spokenDigits(t.text);
+    for (const run of sp.match(/(?:\d[\s\-.]*){10,}/g) ?? []) { const n = pick(run.replace(/\D/g, "")); if (n) return n; }
+    const d = sp.replace(/\D/g, ""), nonSpace = sp.replace(/\s/g, "").length || 1;
+    if (d.length >= 2 && d.length / nonSpace > 0.5) { buf += d; const n = pick(buf); if (n) return n; } else buf = "";
+  }
+  return null;
 }
+export const numberIsReal = (num: string | null, history: Turn[]) => !!num && extractNumber(history) === digits(num).slice(-10);
 const ASK_NUMBER = "Before I let you go, what's the best number for a designer to call you back on?";
 
 export async function agentTurn(history: Turn[]) {
@@ -176,11 +195,11 @@ export async function agentTurn(history: Turn[]) {
   const g = guardPrice(parsed.reply);
   let { fields, call_ended } = parsed;
   let reply = g.reply;
-  if (!numberIsReal(fields.callback_number, history)) {
-    fields = { ...fields, callback_number: null }; // discard a number the caller never said
-    const q = decide(parsed.criteria, parsed.evidence, { intent: parsed.intent });
-    // Do not close a call we would hand to a designer without a real number to call back on.
-    if (call_ended && q.qualified && parsed.intent === "new_enquiry") { call_ended = false; reply = ASK_NUMBER; }
+  fields = { ...fields, callback_number: extractNumber(history) }; // only a number the caller really said
+  if (!fields.callback_number && call_ended && decide(parsed.criteria, parsed.evidence, { intent: parsed.intent }).qualified && parsed.intent === "new_enquiry") {
+    // Ask for it, but never loop: after two asks the call is allowed to end and the handoff notes the missing number.
+    const asked = history.filter((t) => t.role === "agent" && t.text.includes("best number for a designer")).length;
+    if (asked < 2) { call_ended = false; reply = ASK_NUMBER; }
   }
   return { ...parsed, fields, call_ended, reply, price_guard_triggered: g.blocked, verdict: call_ended ? decide(parsed.criteria, parsed.evidence, { intent: parsed.intent }) : null, usage };
 }

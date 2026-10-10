@@ -32,12 +32,15 @@ export async function processTurn(history: Turn[]): Promise<TurnResult> {
   };
 }
 
+const rec_needs_number = (a: { verdict: Verdict }) => a.verdict.qualified;
+
 export async function finalizeCall(args: {
   id: string; source: EnquiryRecord["source"]; turns: Turn[]; fields: Fields; criteria: Criteria; verdict: Verdict;
   usage: Usage; receivedAt: string; firstResponseMs: number; durationMin: number; callerIdNumber?: string;
 }) {
   const received = new Date(args.receivedAt);
   const fields = { ...args.fields, callback_number: args.fields.callback_number ?? args.callerIdNumber ?? null };
+  if (!fields.callback_number && rec_needs_number(args)) args.verdict = { ...args.verdict, uncertainty: [args.verdict.uncertainty, "callback number not captured on the call"].filter(Boolean).join("; ") };
   const cost = costInr(args.usage, args.durationMin, false) // LLM only; dashboard adds voice minutes at the assumed rate;
   const rec: EnquiryRecord = {
     id: args.id, source: args.source, receivedAt: args.receivedAt,

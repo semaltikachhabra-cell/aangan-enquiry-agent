@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyseTranscript, guardPrice, numberIsReal } from "@/lib/agent";
+import { analyseTranscript, extractNumber, guardPrice } from "@/lib/agent";
 import { parseVaaniTranscript, responseSecondsFrom, toTranscriptText, type VaaniPostProcessing } from "@/lib/channels/vaani";
 import { finalizeCall } from "@/lib/session";
 import { live } from "@/lib/store";
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   const a = await analyseTranscript(toTranscriptText(turns));
   const fields = { ...a.fields };
-  if (!numberIsReal(fields.callback_number, turns)) fields.callback_number = null; // never trust an invented number
+  fields.callback_number = extractNumber(turns); // only a number the caller really said
   const durationMin = Math.max(0.1, (d.call_duration ?? 60000) / 60000);
 
   // Audit the live agent's own words: it must never have said a price.

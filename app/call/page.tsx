@@ -50,16 +50,22 @@ export default function CallPage() {
       speechSynthesis.cancel(); speechSynthesis.speak(u);
     });
   }
-  function listen() {
+  // Keeps listening through short pauses (people read digits slowly) and stops after `silenceMs` of quiet.
+  function listen(silenceMs = 1800) {
     return new Promise<string>((resolve) => {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const r = new SR(); recRef.current = r;
-      r.lang = "en-IN"; r.interimResults = false; r.maxAlternatives = 1; r.continuous = false;
-      let out = "";
-      r.onresult = (e: any) => { out = Array.from(e.results).map((x: any) => x[0].transcript).join(" ").trim(); };
+      r.lang = "en-IN"; r.interimResults = true; r.maxAlternatives = 1; r.continuous = true;
+      let text = "", timer: any = null, done = false;
+      const finish = () => { if (done) return; done = true; clearTimeout(timer); try { r.stop(); } catch {} };
+      const arm = (ms: number) => { clearTimeout(timer); timer = setTimeout(finish, ms); };
+      r.onresult = (e: any) => {
+        text = Array.from(e.results).map((x: any) => x[0].transcript).join(" ").replace(/\s+/g, " ").trim();
+        setHeard(text); arm(silenceMs);
+      };
       r.onerror = (e: any) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") setErr("Microphone blocked. Allow the mic for this site (lock icon in the address bar) and press Talk again."); };
-      r.onend = () => resolve(out);
-      try { r.start(); } catch { resolve(""); }
+      r.onend = () => { clearTimeout(timer); resolve(text); };
+      try { r.start(); arm(9000); } catch { resolve(""); }
     });
   }
   function stopTalk() {
@@ -74,13 +80,14 @@ export default function CallPage() {
     setPhase("thinking");
     let d = await send(h);
     let misses = 0;
-    while (talkingRef.current && d) {
+    let turnsTaken = 0;
+    while (talkingRef.current && d && turnsTaken++ < 16) {
       h = [...h, { role: "agent", text: d.reply }];
       setPhase("speaking"); await speak(d.reply);
       if (d.ended || !talkingRef.current) break;
       let said = "";
       while (talkingRef.current && !said && misses < 3) {
-        setPhase("listening"); said = await listen();
+        setPhase("listening"); said = await listen(/number|phone|call you back/i.test(d.reply) ? 3200 : 1800);
         if (!said && talkingRef.current) { misses++; if (misses < 3) { setPhase("speaking"); await speak("Sorry, I didn't catch that. Could you say it again?"); } }
       }
       if (!said || !talkingRef.current) break;
