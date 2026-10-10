@@ -14,7 +14,9 @@ export default function Dashboard() {
 
   const m = useMemo(() => {
     if (!data) return null;
-    const recs = data.records.filter((r: any) => src === "all" || (src === "live" ? r.source !== "transcript-replay" : r.source === "transcript-replay" && String(r.transcriptId).startsWith("T")));
+    // Scope is phone calls only: WhatsApp/web-form replays (W##/F##) are used in the eval, never on the dashboard.
+    const phoneScope = data.records.filter((r: any) => r.source !== "transcript-replay" || String(r.transcriptId).startsWith("T"));
+    const recs = phoneScope.filter((r: any) => src === "all" || (src === "live" ? r.source !== "transcript-replay" : r.source === "transcript-replay"));
     const n = recs.length, q = recs.filter((r: any) => r.verdict.qualified).length;
     const resp = recs.filter((r: any) => r.responseSeconds != null).map((r: any) => r.responseSeconds).sort((a: number, b: number) => a - b);
     const med: number | null = resp.length ? resp[Math.floor(resp.length / 2)] : null;
@@ -38,7 +40,7 @@ export default function Dashboard() {
     <div className="flex" style={{ marginBottom: 12 }}>
       <span>Show:</span>
       <select value={src} onChange={(e) => setSrc(e.target.value as any)}>
-        <option value="all">All enquiries</option><option value="live">Live calls only</option><option value="replay">Replay of the 40 Sept transcripts (phone-call subset)</option>
+        <option value="all">All enquiries</option><option value="live">Live calls only</option><option value="replay">Replay of the 20 September phone calls</option>
       </select>
       <span className="tag">Replay rows are the case's real transcripts run through the agent — not live traffic</span>
     </div>
