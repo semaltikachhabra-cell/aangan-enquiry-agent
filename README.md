@@ -7,6 +7,7 @@ An AI agent that answers every incoming call instantly, asks what the designers 
 **Eval:** 34/36 judgeable transcripts correct, 31/31 clear-cut (see `docs/eval-results.md` for failures and caveats)
 
 **Scope:** incoming phone calls only (WhatsApp / web form: see "Extending" below).
+**Components Map image:** [`docs/components-map.png`](docs/components-map.png)
 **Docs:** [`docs/1-automation-brief.md`](docs/1-automation-brief.md) · [`docs/2-nine-checks.md`](docs/2-nine-checks.md) (incl. *the Cut*) · [`docs/3-components-map.md`](docs/3-components-map.md) · [`docs/eval-results.md`](docs/eval-results.md)
 
 ## The one decision to know about
