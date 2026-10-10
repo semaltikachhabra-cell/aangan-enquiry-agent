@@ -29,9 +29,9 @@ const VOICE_SYSTEM = `You are the phone enquiry agent for Aangan Studio, an inte
 You speak: short sentences, one question at a time, warm and plain. No lists, no markdown, no emojis.
 
 GOALS
-1. Get what the designer always has to ask: name, callback number, project type, location (area/locality), area in sq ft, budget (only if the caller volunteers it, never probe), timeline, ownership/site status (owner or tenant; ready or under construction).
+1. Get what the designer always has to ask (ask for the callback number early, once, and never ask for something already given): name, callback number, project type, location (area/locality), area in sq ft, budget (only if the caller volunteers it, never probe), timeline, ownership/site status (owner or tenant; ready or under construction).
 2. Decide with the rubric whether this enquiry is worth a designer's time.
-3. If qualified: tell the caller a designer will call back and offer to book a consultation. If not: decline gracefully with the exact spirit of the rubric.
+3. If qualified: before ending, always tell the caller by name that a designer from the team will call them back on the number they gave to confirm a free consultation (do not promise an exact time), then thank them. Never end a qualified call without saying this, and never say it (or set call_ended) until you actually have their callback number; if you do not have it yet, ask for it. If not: decline gracefully with the exact spirit of the rubric.
 
 HARD RULES
 - Never state, estimate or hint at any price, range, rate or per-sq-ft figure, even if pressed or asked for a ballpark. The only acceptable answer to a price question is: "${PRICING_DEFLECTION}" Asking for pricing does NOT disqualify the caller. After deflecting a price question, keep the call moving by asking the next missing detail, not by repeating the offer.
@@ -155,6 +155,16 @@ export function decide(c: Criteria, evidence: Record<string, string> = {}, opts:
   };
 }
 
+/** Hallucination guard: a phone number counts only if its digits appear in what the CALLER actually said. */
+const digits = (x: string) => x.replace(/\D/g, "");
+export function numberIsReal(num: string | null, history: Turn[]) {
+  if (!num) return false;
+  const d = digits(num).slice(-10);
+  if (d.length < 10) return false;
+  return history.filter((t) => t.role === "caller").some((t) => digits(t.text).includes(d));
+}
+const ASK_NUMBER = "Before I let you go, what's the best number for a designer to call you back on?";
+
 export async function agentTurn(history: Turn[]) {
   const messages: Anthropic.MessageParam[] = history.length
     ? history.map((t) => ({ role: t.role === "caller" ? "user" : "assistant", content: t.role === "caller" ? t.text : JSON.stringify({ reply: t.text }) }) as Anthropic.MessageParam)
@@ -162,7 +172,15 @@ export async function agentTurn(history: Turn[]) {
   // The model replies as JSON; store only its spoken reply back into history on the client.
   const { parsed, usage } = await call(VOICE_SYSTEM, messages);
   const g = guardPrice(parsed.reply);
-  return { ...parsed, reply: g.reply, price_guard_triggered: g.blocked, verdict: parsed.call_ended ? decide(parsed.criteria, parsed.evidence, { intent: parsed.intent }) : null, usage };
+  let { fields, call_ended } = parsed;
+  let reply = g.reply;
+  if (!numberIsReal(fields.callback_number, history)) {
+    fields = { ...fields, callback_number: null }; // discard a number the caller never said
+    const q = decide(parsed.criteria, parsed.evidence, { intent: parsed.intent });
+    // Do not close a call we would hand to a designer without a real number to call back on.
+    if (call_ended && q.qualified && parsed.intent === "new_enquiry") { call_ended = false; reply = ASK_NUMBER; }
+  }
+  return { ...parsed, fields, call_ended, reply, price_guard_triggered: g.blocked, verdict: call_ended ? decide(parsed.criteria, parsed.evidence, { intent: parsed.intent }) : null, usage };
 }
 
 export async function analyseTranscript(transcriptText: string) {

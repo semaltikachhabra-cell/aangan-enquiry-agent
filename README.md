@@ -20,7 +20,8 @@ Environment variables (never committed; `.env*` is git-ignored):
 
 | Var | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | LLM (model `claude-sonnet-5-5`, override with `ANTHROPIC_MODEL`) |
+| `GEMINI_API_KEY` | **Free LLM option used for this submission** (model `gemini-flash-lite-latest`, ~2 s/turn). Created at aistudio.google.com/apikey, no card. Free-tier latency varies (1–30 s on larger models). |
+| `ANTHROPIC_API_KEY` | Alternative provider (model `claude-sonnet-5-5`, as the brief specified). Used automatically if set; deviation from the brief was because the project had no API budget |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Designer handoff. Unset → **dry-run** (recorded on the dashboard, nothing sent) |
 | `LLM_INPUT_USD_PER_MTOK`, `LLM_OUTPUT_USD_PER_MTOK`, `VOICE_USD_PER_MIN`, `USD_INR` | **Assumed** cost rates (not in the case); set from the real price sheets |
 | `VAANI_WEBHOOK_SECRET` | Shared secret for the Vaani webhook stub |
@@ -49,6 +50,11 @@ caller ──► [Vaani: phone number + STT + TTS]  (or the /call simulator)
 `processTurn()` / `finalizeCall()` don't know about phones. Add a channel by writing a thin adapter like `lib/channels/vaani.ts`:
 - **WhatsApp:** Meta Cloud API webhook → thread as history → reply as a message. Closes the after-hours gaps (W01, W05, W09). Needs approved template for first outbound contact.
 - **Web form:** form POST → pre-filled `Fields` → the same rubric; if a needed field is missing (F04, F07), send one direct question by WhatsApp/email.
+
+## Guardrails (tested)
+- **No prices:** `pricing.md` never reaches the model; a regex guard rewrites any reply containing a figure.
+- **No invented phone numbers:** found in testing: the model once fabricated a callback number. `numberIsReal()` now discards any number whose digits don't appear in the caller's own words, and the call can't end (for a qualified lead) until a real number is captured.
+- **Verdict in code:** the model only judges each criterion; `decide()` applies the rubric.
 
 ## Known limitations (be upfront about these)
 1. **Vaani is a stub.** No Vaani credentials/payload schema were available; `lib/channels/vaani.ts` assumes a payload shape. The live demo is a **text-simulated call**. Real voice adds latency and STT errors (numbers, Hindi/Marathi mixing: see W03) that are untested here.
