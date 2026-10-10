@@ -5,7 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { analyseTranscript, MODEL } from "../lib/agent";
+import { analyseTranscript, MODEL, GEMINI_MODEL, PROVIDER } from "../lib/agent";
 import { costInr } from "../lib/cost";
 import type { EnquiryRecord, Turn } from "../lib/types";
 
@@ -29,6 +29,7 @@ async function main() {
     process.stdout.write(`${t.id} `);
     let a;
     for (let i = 0; i < 3 && !a; i++) { try { a = await analyseTranscript(t.text); } catch (e) { if (i === 2) throw e; } }
+    if (PROVIDER() === "gemini") await new Promise((r) => setTimeout(r, 6000)); // stay under free-tier rate limits
     const got = a!.verdict.qualified ? "Q" : "N";
     const pass = g.expected === "NA" ? null : got === g.expected;
     const received = monthDate(t.text);
@@ -58,7 +59,7 @@ async function main() {
   const fmt = (r: any) => `| ${r.id} | ${r.channel} | ${r.expected} | ${r.got} | ${r.borderline ? "yes" : ""} | ${r.reason.replace(/\|/g, "/")} |`;
   const md = `# Evaluation: agent vs my reading of qualified.md
 
-Model: \`${MODEL}\`. Run: ${new Date().toISOString()}. Ground truth is **my own** reading of \`qualified.md\` + \`services.md\` (see \`data/ground-truth.json\` for the reason behind each label); it is not the studio's. ${rows.length - judged.length} records (${rows.filter((r) => r.pass === null).map((r) => r.id).join(", ")}) have too little content to judge and are excluded from accuracy.
+Model: \`${PROVIDER() === "gemini" ? GEMINI_MODEL : MODEL}\` (${PROVIDER()}). Run: ${new Date().toISOString()}. Ground truth is **my own** reading of \`qualified.md\` + \`services.md\` (see \`data/ground-truth.json\` for the reason behind each label); it is not the studio's. ${rows.length - judged.length} records (${rows.filter((r) => r.pass === null).map((r) => r.id).join(", ")}) have too little content to judge and are excluded from accuracy.
 
 | Slice | Correct | Of | Accuracy |
 |---|---|---|---|

@@ -89,7 +89,33 @@ export function guardPrice(reply: string): { reply: string; blocked: boolean } {
   return PRICE_RE.test(reply) ? { reply: PRICING_DEFLECTION, blocked: true } : { reply, blocked: false };
 }
 
+const useGemini = () => process.env.LLM_PROVIDER === "gemini" || (!process.env.ANTHROPIC_API_KEY && !!process.env.GEMINI_API_KEY);
+export const PROVIDER = () => (useGemini() ? "gemini" : "anthropic");
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+
+async function callGemini(system: string, messages: Anthropic.MessageParam[]) {
+  const key = process.env.GEMINI_API_KEY;
+  const body = {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content) }] })),
+    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2000 },
+  };
+  for (let i = 0; i < 4; i++) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key! }, body: JSON.stringify(body),
+    });
+    if (res.status === 429 || res.status >= 500) { await new Promise((r) => setTimeout(r, 4000 * (i + 1))); continue; } // free-tier rate limit: back off
+    if (!res.ok) throw new Error(`gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    const j: any = await res.json();
+    const text = (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? "").join("");
+    const usage: Usage = { input_tokens: j.usageMetadata?.promptTokenCount ?? 0, output_tokens: j.usageMetadata?.candidatesTokenCount ?? 0 };
+    return { parsed: parseJson(text), usage };
+  }
+  throw new Error("gemini: rate-limited, retry in a minute");
+}
+
 async function call(system: string, messages: Anthropic.MessageParam[]) {
+  if (useGemini()) return callGemini(system, messages);
   const res = await client().messages.create({ model: MODEL, max_tokens: 1200, system, messages });
   const text = res.content.filter((b) => b.type === "text").map((b: any) => b.text).join("");
   const usage: Usage = { input_tokens: res.usage.input_tokens, output_tokens: res.usage.output_tokens };
