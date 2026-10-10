@@ -49,6 +49,6 @@ export async function finalizeCall(args: {
     handoff: { sent: false, channel: null, at: null },
   };
   if (rec.verdict.qualified) rec.handoff = await sendHandoff(rec);
-  saveLive(rec);
+  await saveLive(rec);
   return rec;
 }

@@ -4,5 +4,5 @@ import { RATES } from "@/lib/cost";
 
 export const dynamic = "force-dynamic";
 export async function GET() {
-  return NextResponse.json({ records: all(), rates: RATES });
+  return NextResponse.json({ records: await all(), rates: RATES });
 }
