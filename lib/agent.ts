@@ -23,7 +23,7 @@ const SCHEMA = `Return ONLY a JSON object, no prose, no code fences:
   "call_ended": boolean
 }
 Rules for fields: use null for anything the caller has not said. "budget" is only what the caller volunteered, verbatim. Never guess.
-Rules for criteria (from the rubric): budget and decision_maker are "unclear" unless the caller gave a number that is clearly too low for the scope (fail) or clearly authorised/is the decider (pass). Budget NOT mentioned = "unclear" (treated as qualified later). Timeline: pass if execution is possible 8-10 weeks after consultation; fail only if the caller needs it in under ~6 weeks.`;
+Rules for criteria (from the rubric): "real_project" is also "fail" when the project type is something the SERVICES document says the studio does not do (restaurants, hotels, retail, gyms, structural/architectural work, standalone furniture sourcing, standalone Vastu, advice-only). budget and decision_maker are "unclear" unless the caller gave a number that is clearly too low for the scope (fail) or clearly authorised/is the decider (pass). Budget NOT mentioned = "unclear" (treated as qualified later). Timeline: pass if execution is possible 8-10 weeks after consultation; fail only if the caller needs it in under ~6 weeks.`;
 
 const VOICE_SYSTEM = `You are the phone enquiry agent for Aangan Studio, an interior design studio in Pune. You answer every call instantly, day or night.
 You speak: short sentences, one question at a time, warm and plain. No lists, no markdown, no emojis.
