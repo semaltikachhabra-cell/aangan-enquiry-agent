@@ -41,8 +41,8 @@ export async function finalizeCall(args: {
   const cost = costInr(args.usage, args.durationMin, false) // LLM only; dashboard adds voice minutes at the assumed rate;
   const rec: EnquiryRecord = {
     id: args.id, source: args.source, receivedAt: args.receivedAt,
-    respondedAt: new Date(received.getTime() + args.firstResponseMs).toISOString(),
-    responseSeconds: Math.round(args.firstResponseMs / 100) / 10,
+    respondedAt: new Date(received.getTime() + (Number.isFinite(args.firstResponseMs) ? args.firstResponseMs : 0)).toISOString(),
+    responseSeconds: Number.isFinite(args.firstResponseMs) ? Math.round(args.firstResponseMs / 100) / 10 : null,
     outsideOfficeHours: outsideHours(received),
     fields, criteria: args.criteria, verdict: args.verdict, turns: args.turns, usage: args.usage,
     durationMin: args.durationMin, costInr: cost.totalInr,

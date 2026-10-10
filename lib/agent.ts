@@ -156,7 +156,9 @@ export function decide(c: Criteria, evidence: Record<string, string> = {}, opts:
 }
 
 /** Hallucination guard: a phone number counts only if its digits appear in what the CALLER actually said. */
-const digits = (x: string) => x.replace(/\D/g, "");
+const WORDS: Record<string, string> = { zero: "0", oh: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9" };
+/** Digits in a caller's utterance, including spoken ones ("nine eight two zero…"), which speech-to-text often returns. */
+const digits = (x: string) => x.toLowerCase().replace(/\b(zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/g, (w) => WORDS[w]).replace(/\D/g, "");
 export function numberIsReal(num: string | null, history: Turn[]) {
   if (!num) return false;
   const d = digits(num).slice(-10);
