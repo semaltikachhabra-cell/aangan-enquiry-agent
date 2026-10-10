@@ -3,6 +3,9 @@
 Case Study 3 (AI and its Application, Mesa School of Business): *"Nikhil: Unanswered Enquiries"*.
 An AI agent that answers every incoming call instantly, asks what the designers always ask, applies the founder's own five-point rubric, hands qualified leads to a designer on Telegram with everything pre-asked, and feeds a founder dashboard that shows what the system costs against what it generates.
 
+**Live demo:** https://aangan-enquiry-agent-nu.vercel.app (`/call` to simulate a call, `/dashboard` for the founder view)
+**Eval:** 34/36 judgeable transcripts correct, 31/31 clear-cut (see `docs/eval-results.md` for failures and caveats)
+
 **Scope:** incoming phone calls only (WhatsApp / web form: see "Extending" below).
 **Docs:** [`docs/1-automation-brief.md`](docs/1-automation-brief.md) · [`docs/2-nine-checks.md`](docs/2-nine-checks.md) (incl. *the Cut*) · [`docs/3-components-map.md`](docs/3-components-map.md) · [`docs/eval-results.md`](docs/eval-results.md)
 
@@ -59,7 +62,7 @@ caller ──► [Vaani: phone number + STT + TTS]  (or the /call simulator)
 ## Known limitations (be upfront about these)
 1. **Vaani is a stub.** No Vaani credentials/payload schema were available; `lib/channels/vaani.ts` assumes a payload shape. The live demo is a **text-simulated call**. Real voice adds latency and STT errors (numbers, Hindi/Marathi mixing: see W03) that are untested here.
 2. **Eval is a replay, not a live test.** The agent reads the *finished* transcripts and judges them. That tests the rubric and extraction, not how well it conducts a call. The ground truth is *my* reading of `qualified.md`, not the studio's; 8 of 40 labels are borderline and 4 records can't be judged (see `docs/eval-results.md`).
-3. **Dashboard storage is a JSON file** (`/tmp` on Vercel = resets between cold starts). Replace `lib/store.ts` with Supabase/Neon for production. The 40-transcript replay is committed so the dashboard is never empty.
+3. **Live records need a Blob store.** Production uses a private Vercel Blob store (`BLOB_READ_WRITE_TOKEN`, created in the Vercel Storage tab). Without it, records go to a local JSON file, which Vercel functions do not share, so the live dashboard would stay empty. The 40-transcript replay is committed so the dashboard is never empty.
 4. **Cost numbers are assumptions** (token and voice rates), and replay rows have no agent response time (they were human-desk calls), so *response time* is only meaningful on live/sim calls.
 5. **Conversion rate is assumed**; pipeline value is pipeline, not revenue.
 6. **No booking/calendar integration.** The agent offers a consultation; it doesn't write to a calendar.
