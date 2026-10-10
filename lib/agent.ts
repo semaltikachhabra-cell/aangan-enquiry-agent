@@ -19,6 +19,7 @@ const SCHEMA = `Return ONLY a JSON object, no prose, no code fences:
   "fields": { "name": string|null, "callback_number": string|null, "project_type": string|null, "location": string|null, "area_sqft": number|null, "budget": string|null, "timeline": string|null, "ownership": string|null, "referral": string|null, "notes": string|null },
   "criteria": { "real_project": "pass"|"fail"|"unclear", "service_area": "pass"|"fail"|"unclear", "timeline": "pass"|"fail"|"unclear", "budget": "pass"|"fail"|"unclear", "decision_maker": "pass"|"fail"|"unclear" },
   "evidence": { "real_project": string, "service_area": string, "timeline": string, "budget": string, "decision_maker": string },
+  "intent": "new_enquiry"|"existing_client_issue"|"no_content",  // existing_client_issue = an existing client complaining/chasing about a running project; no_content = nothing usable
   "call_ended": boolean
 }
 Rules for fields: use null for anything the caller has not said. "budget" is only what the caller volunteered, verbatim. Never guess.
@@ -38,6 +39,7 @@ HARD RULES
 - Never invent facts about the studio. If unsure, say the designer will confirm.
 - If the caller is outside the service area or only wants advice, say so honestly and kindly, and end the call.
 - Unclear on real project / service area / timeline: ask ONE direct question. Unclear on budget or decision-maker: do not push.
+- If the caller is an existing client complaining about a running project, apologise, take name and details, promise a senior callback, set intent "existing_client_issue" and end the call.
 - When you have what you need (or the caller is clearly not a fit), close the call and set call_ended true.
 
 === SERVICES ===
@@ -65,6 +67,7 @@ interface Parsed {
   criteria: Criteria;
   evidence: Record<string, string>;
   call_ended: boolean;
+  intent: "new_enquiry" | "existing_client_issue" | "no_content";
 }
 
 function parseJson(text: string): Parsed {
@@ -76,6 +79,7 @@ function parseJson(text: string): Parsed {
     criteria: { ...EMPTY_CRITERIA, ...(o.criteria ?? {}) },
     evidence: o.evidence ?? {},
     call_ended: !!o.call_ended,
+    intent: ["existing_client_issue", "no_content"].includes(o.intent) ? o.intent : "new_enquiry",
   };
 }
 
@@ -93,7 +97,13 @@ async function call(system: string, messages: Anthropic.MessageParam[]) {
 }
 
 /** Rubric from qualified.md, applied deterministically to the model's per-criterion judgement. */
-export function decide(c: Criteria, evidence: Record<string, string> = {}): Verdict {
+export function decide(c: Criteria, evidence: Record<string, string> = {}, opts: { intent?: Parsed["intent"]; strictUnclear?: boolean } = {}): Verdict {
+  if (opts.intent === "existing_client_issue") {
+    return { qualified: false, reason: "Existing client with a complaint about a running project — not a new lead; escalate to the studio head.", uncertainty: null };
+  }
+  if (opts.intent === "no_content") {
+    return { qualified: false, reason: "No usable enquiry content (e.g. missed call / no details given).", uncertainty: null };
+  }
   const names: Record<keyof Criteria, string> = {
     real_project: "not a real execution project", service_area: "outside Pune/PCMC", timeline: "timeline too short to execute",
     budget: "budget clearly too low for the scope", decision_maker: "caller is not the decision-maker",
@@ -103,6 +113,10 @@ export function decide(c: Criteria, evidence: Record<string, string> = {}): Verd
   const unclearHard = (["real_project", "service_area", "timeline"] as const).filter((k) => c[k] === "unclear");
   if (failed.length) {
     return { qualified: false, reason: failed.map((k) => `${names[k]}${evidence[k] ? ` (${evidence[k]})` : ""}`).join("; "), uncertainty: null };
+  }
+  // Replay of a finished record: if we still cannot confirm two or more of the must-know criteria, there is nothing to forward.
+  if (opts.strictUnclear && unclearHard.length >= 2) {
+    return { qualified: false, reason: `Too little information to forward (unconfirmed: ${unclearHard.join(", ")}).`, uncertainty: null };
   }
   const unc: string[] = [];
   if (unclearSoft.includes("budget")) unc.push("budget not stated");
@@ -122,10 +136,10 @@ export async function agentTurn(history: Turn[]) {
   // The model replies as JSON; store only its spoken reply back into history on the client.
   const { parsed, usage } = await call(VOICE_SYSTEM, messages);
   const g = guardPrice(parsed.reply);
-  return { ...parsed, reply: g.reply, price_guard_triggered: g.blocked, verdict: parsed.call_ended ? decide(parsed.criteria, parsed.evidence) : null, usage };
+  return { ...parsed, reply: g.reply, price_guard_triggered: g.blocked, verdict: parsed.call_ended ? decide(parsed.criteria, parsed.evidence, { intent: parsed.intent }) : null, usage };
 }
 
 export async function analyseTranscript(transcriptText: string) {
   const { parsed, usage } = await call(ANALYSE_SYSTEM, [{ role: "user", content: transcriptText }]);
-  return { ...parsed, verdict: decide(parsed.criteria, parsed.evidence), usage };
+  return { ...parsed, verdict: decide(parsed.criteria, parsed.evidence, { intent: parsed.intent, strictUnclear: true }), usage };
 }

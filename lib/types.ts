@@ -36,7 +36,7 @@ export interface EnquiryRecord {
   source: "live-sim" | "vaani" | "transcript-replay";
   receivedAt: string; // ISO
   respondedAt: string; // ISO — first agent reply
-  responseSeconds: number;
+  responseSeconds: number | null; // null for transcript replays: the original desk time is not the agent's time
   outsideOfficeHours: boolean;
   fields: Fields;
   criteria: Criteria;
@@ -46,5 +46,6 @@ export interface EnquiryRecord {
   durationMin: number;
   costInr: number;
   handoff: { sent: boolean; channel: "telegram" | "dry-run" | null; at: string | null; error?: string };
-  transcriptId?: string; // T01.. for replays
+  transcriptId?: string; // T01.. / W01.. / F01.. for replays
+  channel?: "Phone" | "WhatsApp" | "Web Form";
 }

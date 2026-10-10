@@ -14,19 +14,20 @@ export default function Dashboard() {
 
   const m = useMemo(() => {
     if (!data) return null;
-    const recs = data.records.filter((r: any) => src === "all" || (src === "live" ? r.source !== "transcript-replay" : r.source === "transcript-replay"));
+    const recs = data.records.filter((r: any) => src === "all" || (src === "live" ? r.source !== "transcript-replay" : r.source === "transcript-replay" && String(r.transcriptId).startsWith("T")));
     const n = recs.length, q = recs.filter((r: any) => r.verdict.qualified).length;
-    const resp = recs.map((r: any) => r.responseSeconds).sort((a: number, b: number) => a - b);
-    const med = resp.length ? resp[Math.floor(resp.length / 2)] : 0;
+    const resp = recs.filter((r: any) => r.responseSeconds != null).map((r: any) => r.responseSeconds).sort((a: number, b: number) => a - b);
+    const med: number | null = resp.length ? resp[Math.floor(resp.length / 2)] : null;
     const R = data.rates;
     const llm = recs.reduce((s: number, r: any) => s + r.costInr, 0);
     const voice = recs.reduce((s: number, r: any) => s + r.durationMin * R.voiceUsdPerMin * R.usdInr, 0);
     const cost = llm + voice;
     const handoffs = recs.filter((r: any) => r.handoff.sent).length;
+    const pending = recs.filter((r: any) => r.verdict.qualified && !r.handoff.sent).length;
     const after = recs.filter((r: any) => r.outsideOfficeHours).length;
     const mid = (lo + hi) / 2 * 1e5;
     const lowV = q * (conv / 100) * lo * 1e5, highV = q * (conv / 100) * hi * 1e5, midV = q * (conv / 100) * mid;
-    return { recs, n, q, med, cost, llm, voice, handoffs, after, perEnq: n ? cost / n : 0, lowV, highV, midV, mid };
+    return { recs, pending, n, q, med, cost, llm, voice, handoffs, after, perEnq: n ? cost / n : 0, lowV, highV, midV, mid };
   }, [data, src, lo, hi, conv]);
 
   if (!m) return <p className="sub">Loading…</p>;
@@ -44,9 +45,9 @@ export default function Dashboard() {
     {empty && <p className="sub">No enquiries yet — <a href="/call">simulate a call</a> or run <code>npm run eval</code>.</p>}
     <div className="grid">
       <Kpi k="Enquiries handled" v={String(m.n)} s={`${m.after} outside 10am–7pm`} />
-      <Kpi k="Median first response" v={`${m.med.toFixed(1)}s`} s="Case baseline: 48% unanswered in 48h (from case)" />
+      <Kpi k="Median first response" v={m.med == null ? "n/a" : `${m.med.toFixed(1)}s`} s={m.med == null ? "Replay rows have no agent timing — make a live call. Case baseline: 48% unanswered in 48h" : "Case baseline: 48% unanswered in 48h (from case)"} />
       <Kpi k="Qualified / not" v={`${m.q} / ${m.n - m.q}`} s={m.n ? `${Math.round((m.q / m.n) * 100)}% qualified` : ""} />
-      <Kpi k="Handoffs sent" v={String(m.handoffs)} s="Telegram (or dry-run if no token set)" />
+      <Kpi k="Handoffs sent" v={String(m.handoffs)} s={m.pending ? `${m.pending} qualified replay rows not sent (replays never message a designer)` : "Telegram (or dry-run if no token set)"} />
     </div>
 
     <div className="row two">
@@ -82,7 +83,7 @@ export default function Dashboard() {
           <td>{r.fields.name ?? "—"}</td><td>{r.fields.project_type ?? "—"}</td><td>{r.fields.area_sqft ?? "—"}</td>
           <td className={r.verdict.qualified ? "ok" : "no"}><b>{r.verdict.qualified ? "Qualified" : "No"}</b></td>
           <td>{r.verdict.reason}{r.verdict.uncertainty ? <div className="warn">⚠ {r.verdict.uncertainty}</div> : null}</td>
-          <td>{r.responseSeconds}s</td><td>{r.handoff.sent ? "✓ " + r.handoff.channel : "—"}</td></tr>)}</tbody>
+          <td>{r.responseSeconds == null ? "—" : r.responseSeconds + "s"}</td><td>{r.handoff.sent ? "✓ " + r.handoff.channel : "—"}</td></tr>)}</tbody>
       </table></div>
     </div>
   </>);

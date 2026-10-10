@@ -27,7 +27,7 @@ export function formatBrief(r: EnquiryRecord) {
     f.notes ? `<b>Notes:</b> ${esc(f.notes)}` : "",
     ``,
     `<i>Already asked on the call — please don't re-ask these. Pricing was NOT discussed; no figure was given.</i>`,
-    `Enquiry ${r.id} · answered in ${r.responseSeconds}s${r.outsideOfficeHours ? " · after hours" : ""}`,
+    `Enquiry ${r.id} · answered in ${r.responseSeconds ?? "—"}s${r.outsideOfficeHours ? " · after hours" : ""}`,
   ];
   return lines.filter((l) => l !== "" || true).join("\n");
 }
