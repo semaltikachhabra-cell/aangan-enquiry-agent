@@ -29,7 +29,7 @@ async function main() {
     process.stdout.write(`${t.id} `);
     let a;
     for (let i = 0; i < 3 && !a; i++) { try { a = await analyseTranscript(t.text); } catch (e) { if (i === 2) throw e; } }
-    if (PROVIDER() === "gemini") await new Promise((r) => setTimeout(r, 6000)); // stay under free-tier rate limits
+    if (PROVIDER() === "gemini") await new Promise((r) => setTimeout(r, 4000)); // stay under free-tier rate limits
     const got = a!.verdict.qualified ? "Q" : "N";
     const pass = g.expected === "NA" ? null : got === g.expected;
     const received = monthDate(t.text);

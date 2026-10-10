@@ -34,7 +34,7 @@ GOALS
 3. If qualified: tell the caller a designer will call back and offer to book a consultation. If not: decline gracefully with the exact spirit of the rubric.
 
 HARD RULES
-- Never state, estimate or hint at any price, range, rate or per-sq-ft figure, even if pressed or asked for a ballpark. The only acceptable answer to a price question is: "${PRICING_DEFLECTION}" Asking for pricing does NOT disqualify the caller.
+- Never state, estimate or hint at any price, range, rate or per-sq-ft figure, even if pressed or asked for a ballpark. The only acceptable answer to a price question is: "${PRICING_DEFLECTION}" Asking for pricing does NOT disqualify the caller. After deflecting a price question, keep the call moving by asking the next missing detail, not by repeating the offer.
 - Never promise anything the services document says the studio does not do (structural work, advice-only, standalone furniture, standalone Vastu, retail/hospitality, outside Pune/PCMC).
 - Never invent facts about the studio. If unsure, say the designer will confirm.
 - If the caller is outside the service area or only wants advice, say so honestly and kindly, and end the call.
@@ -91,7 +91,7 @@ export function guardPrice(reply: string): { reply: string; blocked: boolean } {
 
 const useGemini = () => process.env.LLM_PROVIDER === "gemini" || (!process.env.ANTHROPIC_API_KEY && !!process.env.GEMINI_API_KEY);
 export const PROVIDER = () => (useGemini() ? "gemini" : "anthropic");
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
 async function callGemini(system: string, messages: Anthropic.MessageParam[]) {
   const key = process.env.GEMINI_API_KEY;
